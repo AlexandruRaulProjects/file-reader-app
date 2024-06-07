@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/file-reader-server.js",
+      "src": "./file-reader-server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/file-reader-server.js"
+      "src": "/(.*)",
+      "dest": "/file-reader-server.js"
     }
   ]
 }
