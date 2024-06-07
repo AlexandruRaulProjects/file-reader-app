@@ -8,6 +8,7 @@
     "firebase": "^10.12.2",
     "helmet": "^7.1.0",
     "pdf-parse": "^1.1.1",
-    "pdf-parser": "^1.0.5"
+    "pdf-parser": "^1.0.5",
+    "serverless-http": "^3.2.0"
   }
 }
