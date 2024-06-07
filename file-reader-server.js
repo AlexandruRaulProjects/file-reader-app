@@ -66,7 +66,7 @@ app.post("/finalize", async (req, res) => {
     );
 
     // Get the download URL
-    const url = getUrl(storage, name);
+    const url = await getUrl(storage, name);
     console.log(`Download URL: ${url}`);
 
     // Download the PDF file from the URL
@@ -74,7 +74,7 @@ app.post("/finalize", async (req, res) => {
     console.log(`Downloaded PDF file of size: ${response.data.byteLength}`);
 
     // Extracted text from the PDF
-    const extractedText = getPDFfileData(response.data);
+    const extractedText = await getPDFfileData(response.data);
     console.log(`Extracted text: ${extractedText}`);
 
     res.send(`Extracted text from the PDF: ${extractedText}`);
