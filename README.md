@@ -10,7 +10,7 @@ This is a server app using Node.
 2. Go to root project
 `cd <where you cloned this repo in the previous step>`
 3. Run it
-Run in any terminal this command: `node .\file-reader-server.js`
+`node .\file-reader-server.js`
 
 # How to run it remotely
 
