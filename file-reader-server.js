@@ -107,11 +107,13 @@ app.post("/finalize", async (req, res) => {
         },
       ],
       temperature: 0.7,
-      max_tokens: 64,
+      max_tokens: 128,
       top_p: 1,
     });
 
-    res.send(`Summary: ${response}`);
+    const summary = openaiRes.choices[0].message.content;
+
+    console.log(`Summary: ${summary}`);
   } catch (error) {
     res.status(500).send(error.toString());
   }
