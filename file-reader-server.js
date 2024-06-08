@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const axios = require("axios");
+const OpenAI = require("openai");
 
 require("dotenv").config();
 
@@ -12,8 +13,12 @@ const { getStorage, ref, getDownloadURL } = require("firebase/storage");
 const { initializeApp } = require("firebase/app");
 
 const app = express();
-const PORT = process.env.PORT;
 
+// Initializing the env variables
+const openai = new OpenAI({
+  apiKey: process.env.OPEN_AI_API_KEY,
+});
+const PORT = process.env.PORT;
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -52,8 +57,6 @@ const getPDFfileData = async (dataResponse) => {
   return data.text;
 };
 
-const getSummaryFromText = async (text) => {};
-
 app.post("/finalize", async (req, res) => {
   try {
     const { fileDetails } = req.body;
@@ -76,6 +79,25 @@ app.post("/finalize", async (req, res) => {
     // Extracted text content from the PDF
     const extractedText = await getPDFfileData(response.data);
     console.log(`Extracted text: ${extractedText}`);
+
+    const openaiRes = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: "Summarize content you are provided with.",
+        },
+        {
+          role: "user",
+          content: extractedText,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 64,
+      top_p: 1,
+    });
+
+    console.log(`Summary: ${response}`);
 
     res.send(`Extracted text from the PDF: ${extractedText}`);
   } catch (error) {
