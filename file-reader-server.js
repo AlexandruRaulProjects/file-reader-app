@@ -73,7 +73,7 @@ app.post("/finalize", async (req, res) => {
     const response = await axios.get(url, { responseType: "arraybuffer" });
     console.log(`Downloaded PDF file of size: ${response.data.byteLength}`);
 
-    // Extracted text from the PDF
+    // Extracted text content from the PDF
     const extractedText = await getPDFfileData(response.data);
     console.log(`Extracted text: ${extractedText}`);
 
