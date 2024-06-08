@@ -68,16 +68,30 @@ app.post("/finalize", async (req, res) => {
       `Mime Type: ${mimeType}, Name: ${name}, Size: ${size}, URI: ${uri}`
     );
 
+    console.log("Waiting to get storage...");
+    const storage = getStorage();
+    console.log(`Storage received! : ${storage}`);
+    console.log("Waiting to get reference...");
+    const pathReference = ref(storage, `unprocessed_files/${name}`);
+    console.log("Reference received!");
+
     // Get the download URL
-    const url = await getUrl(storage, name);
+    const url = await getDownloadURL(pathReference);
     console.log(`Download URL: ${url}`);
 
     // Download the PDF file from the URL
     const response = await axios.get(url, { responseType: "arraybuffer" });
     console.log(`Downloaded PDF file of size: ${response.data.byteLength}`);
 
-    // Extracted text content from the PDF
-    const extractedText = await getPDFfileData(response.data);
+    const pdfBuffer = Buffer.from(response.data, "binary");
+    console.log(`PDF Buffer length: ${pdfBuffer.length}`);
+
+    // Parse the PDF using pdf-parse
+    const data = await pdfParse(pdfBuffer);
+    console.log(`Parsed PDF data: ${data}`);
+
+    // Extracted text from the PDF
+    const extractedText = data.text;
     console.log(`Extracted text: ${extractedText}`);
 
     const openaiRes = await openai.chat.completions.create({
@@ -97,9 +111,7 @@ app.post("/finalize", async (req, res) => {
       top_p: 1,
     });
 
-    console.log(`Summary: ${response}`);
-
-    res.send(`Extracted text from the PDF: ${extractedText}`);
+    res.send(`Summary: ${response}`);
   } catch (error) {
     res.status(500).send(error.toString());
   }
