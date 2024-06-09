@@ -1,6 +1,7 @@
 const express = require("express");
 const { json } = require("body-parser");
 const pdfParse = require("pdf-parse");
+const PDFDocument = require("pdfkit");
 const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
@@ -9,7 +10,12 @@ const OpenAI = require("openai");
 
 require("dotenv").config();
 
-const { getStorage, ref, getDownloadURL } = require("firebase/storage");
+const {
+  getStorage,
+  ref,
+  getDownloadURL,
+  uploadBytesResumable,
+} = require("firebase/storage");
 const { initializeApp } = require("firebase/app");
 
 const app = express();
@@ -114,6 +120,51 @@ app.post("/finalize", async (req, res) => {
     const summary = openaiRes.choices[0].message.content;
 
     console.log(`Summary: ${summary}`);
+
+    try {
+      // Create a new PDF document
+      const doc = new PDFDocument();
+
+      const pdfPath = `${name}_summary.pdf`;
+      const writeStream = fs.createWriteStream(pdfPath);
+
+      // Pipe the PDF into a writable stream (in this case, a file)
+      doc.pipe(writeStream);
+
+      // Add text to the PDF
+      doc.fontSize(25).text(summary, 100, 100);
+
+      // Finalize the PDF and end the stream
+      doc.end();
+
+      // Wait for the write stream to finish
+      await new Promise((resolve, reject) => {
+        writeStream.on("finish", resolve);
+        writeStream.on("error", reject);
+      });
+
+      // Read the PDF file as a blob
+      const blobFile = fs.readFileSync(pdfPath);
+
+      if (!blobFile) return;
+      const storageRef = ref(storage, `processed_files/${name}_summary.pdf`);
+      const uploadTask = uploadBytesResumable(storageRef, blobFile);
+      uploadTask.on(
+        "state_changed",
+        null,
+        (error) => console.log(error),
+        () => {
+          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+            //LINE C
+            console.log("PDF file available at", downloadURL);
+            return downloadURL;
+          });
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+    res.send("Summary generation was successfully accomplished!");
   } catch (error) {
     res.status(500).send(error.toString());
   }
