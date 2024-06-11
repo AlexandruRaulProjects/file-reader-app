@@ -1,3 +1,7 @@
+# pdf and mp3 files
+*.pdf
+*.mp3
+
 # Logs
 logs
 *.log

@@ -47,21 +47,12 @@ app.get("/", async (req, res) => {
   res.send("Hello World!");
 });
 
-const getUrl = async (storage, fileName) => {
-  const pathReference = ref(storage, `unprocessed_files/${fileName}`);
-  return await getDownloadURL(pathReference);
-};
+// Delay function for async/await
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const getPDFfileData = async (dataResponse) => {
-  const pdfBuffer = Buffer.from(dataResponse, "binary");
-  console.log(`PDF Buffer length: ${pdfBuffer.length}`);
-
-  // Parse the PDF using pdf-parse
-  const data = await pdfParse(pdfBuffer);
-  console.log(`Parsed PDF data: ${data}`);
-
-  return data.text;
-};
+// Default values for pdfUrl and mp3Url
+let pdfUrl = "";
+let mp3Url = "";
 
 app.post("/finalize", async (req, res) => {
   try {
@@ -70,6 +61,7 @@ app.post("/finalize", async (req, res) => {
 
     // Extract information from fileDetails
     const { mimeType, name, size, uri } = fileDetails;
+
     console.log(
       `Mime Type: ${mimeType}, Name: ${name}, Size: ${size}, URI: ${uri}`
     );
@@ -82,6 +74,7 @@ app.post("/finalize", async (req, res) => {
     console.log("Reference received!");
 
     // Get the download URL
+    await delay(1000);
     const url = await getDownloadURL(pathReference);
     console.log(`Download URL: ${url}`);
 
@@ -126,6 +119,7 @@ app.post("/finalize", async (req, res) => {
       const doc = new PDFDocument();
 
       const pdfPath = `${name}_summary.pdf`;
+
       const writeStream = fs.createWriteStream(pdfPath);
 
       // Pipe the PDF into a writable stream (in this case, a file)
@@ -144,34 +138,94 @@ app.post("/finalize", async (req, res) => {
       });
 
       // Read the PDF file as a blob
-      const blobFile = fs.readFileSync(pdfPath);
+      const pdfBlob = fs.readFileSync(pdfPath);
 
-      if (!blobFile) return;
-      const storageRef = ref(storage, `processed_files/${name}_summary.pdf`);
-      const uploadTask = uploadBytesResumable(storageRef, blobFile);
-      uploadTask.on(
+      if (!pdfBlob) return;
+
+      const pdfFileName = name.replace(".pdf", "");
+
+      const storageRef = ref(
+        storage,
+        `processed_files/${pdfFileName}_summary.pdf`
+      );
+      const uploadTaskForPdf = uploadBytesResumable(storageRef, pdfBlob);
+      uploadTaskForPdf.on(
         "state_changed",
         null,
         (error) => console.log(error),
         () => {
-          getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          getDownloadURL(uploadTaskForPdf.snapshot.ref).then((downloadURL) => {
             //LINE C
             console.log("PDF file available at", downloadURL);
             return downloadURL;
           });
         }
       );
+
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: "alloy",
+        input: summary,
+      });
+
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+
+      // Create Blob from buffer
+      const mp3Blob = new Blob([buffer], { type: "audio/mp3" });
+
+      if (!mp3Blob) return;
+
+      // preprocess the file extension
+      const mp3FileName = name.replace(".pdf", "");
+
+      const speechFileRef = ref(storage, `audios/${mp3FileName}.mp3`);
+      const uploadTaskForMp3 = uploadBytesResumable(speechFileRef, mp3Blob);
+      uploadTaskForMp3.on(
+        "state_changed",
+        null,
+        (error) => console.log(error),
+        () => {
+          getDownloadURL(uploadTaskForMp3.snapshot.ref).then((downloadURL) => {
+            //LINE C
+            console.log("Mp3 file available at", downloadURL);
+            return downloadURL;
+          });
+        }
+      );
+
+      // to get the processed files reference
+      console.log("Waiting to get reference...");
+      const pathReferenceForPdf = ref(
+        storage,
+        `processed_files/${pdfFileName}_summary.pdf`
+      );
+      console.log("Reference received!");
+      // Get the download URL
+      pdfUrl = await getDownloadURL(pathReferenceForPdf);
+      console.log(`2 Download URL for pdf: ${pdfUrl}`);
+
+      // to get the mp3 files reference
+      console.log("Waiting to get reference...");
+      const pathReferenceForMp3 = ref(storage, `audios/${mp3FileName}.mp3`);
+      console.log("Reference received!");
+
+      await delay(2000); // Adding delay to ensure file availability
+
+      // Get the download URL
+      mp3Url = await getDownloadURL(pathReferenceForMp3);
+      console.log(`2 Download URL for mp3: ${mp3Url}`);
+
+      res.send({ processedFileURI: pdfUrl, mp3FileUri: mp3Url });
     } catch (e) {
       console.error(e);
     }
-    res.send("Summary generation was successfully accomplished!");
   } catch (error) {
     res.status(500).send(error.toString());
   }
 });
 
 app.get("/finalize", async (req, res) => {
-  res.send(req.body);
+  res.send({ processedFileURI: pdfUrl, mp3FileUri: mp3Url });
 });
 
 app.listen(PORT, () => {
