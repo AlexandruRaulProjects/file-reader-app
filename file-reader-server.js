@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 const OpenAI = require("openai");
 
 require("dotenv").config();
@@ -19,6 +20,8 @@ const {
 const { initializeApp } = require("firebase/app");
 
 const app = express();
+// Generate a new UUID
+const uniqueId = uuidv4();
 
 // Initializing the env variables
 const openai = new OpenAI({
@@ -56,8 +59,9 @@ let mp3Url = "";
 
 app.post("/finalize", async (req, res) => {
   try {
-    const { fileDetails } = req.body;
+    const { fileDetails, settings } = req.body;
     console.log("Received file details:", fileDetails);
+    console.log("Received settings:", settings);
 
     // Extract information from fileDetails
     const { mimeType, name, size, uri } = fileDetails;
@@ -98,15 +102,15 @@ app.post("/finalize", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: "Summarize content you are provided with.",
+          content: `Summarize content you are provided with in ${settings.language} language.`,
         },
         {
           role: "user",
           content: extractedText,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 128,
+      temperature: settings.typeOfSummary,
+      max_tokens: settings.size,
       top_p: 1,
     });
 
@@ -146,7 +150,7 @@ app.post("/finalize", async (req, res) => {
 
       const storageRef = ref(
         storage,
-        `processed_files/${pdfFileName}_summary.pdf`
+        `processed_files/${pdfFileName}_summary_${uniqueId}.pdf`
       );
       const uploadTaskForPdf = uploadBytesResumable(storageRef, pdfBlob);
       uploadTaskForPdf.on(
@@ -155,8 +159,6 @@ app.post("/finalize", async (req, res) => {
         (error) => console.log(error),
         () => {
           getDownloadURL(uploadTaskForPdf.snapshot.ref).then((downloadURL) => {
-            //LINE C
-            console.log("PDF file available at", downloadURL);
             return downloadURL;
           });
         }
@@ -164,7 +166,7 @@ app.post("/finalize", async (req, res) => {
 
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
-        voice: "alloy",
+        voice: settings.voice,
         input: summary,
       });
 
@@ -178,7 +180,10 @@ app.post("/finalize", async (req, res) => {
       // preprocess the file extension
       const mp3FileName = name.replace(".pdf", "");
 
-      const speechFileRef = ref(storage, `audios/${mp3FileName}.mp3`);
+      const speechFileRef = ref(
+        storage,
+        `audios/${mp3FileName}_${uniqueId}.mp3`
+      );
       const uploadTaskForMp3 = uploadBytesResumable(speechFileRef, mp3Blob);
       uploadTaskForMp3.on(
         "state_changed",
@@ -186,27 +191,20 @@ app.post("/finalize", async (req, res) => {
         (error) => console.log(error),
         () => {
           getDownloadURL(uploadTaskForMp3.snapshot.ref).then((downloadURL) => {
-            //LINE C
-            console.log("Mp3 file available at", downloadURL);
             return downloadURL;
           });
         }
       );
-
-      // to get the processed files reference
-      console.log("Waiting to get reference...");
       const pathReferenceForPdf = ref(
         storage,
-        `processed_files/${pdfFileName}_summary.pdf`
+        `processed_files/${pdfFileName}_summary_${uniqueId}.pdf`
       );
-      console.log("Reference received!");
       // Get the download URL
       pdfUrl = await getDownloadURL(pathReferenceForPdf);
-      console.log(`2 Download URL for pdf: ${pdfUrl}`);
-
-      // to get the mp3 files reference
-      console.log("Waiting to get reference...");
-      const pathReferenceForMp3 = ref(storage, `audios/${mp3FileName}.mp3`);
+      const pathReferenceForMp3 = ref(
+        storage,
+        `audios/${mp3FileName}_${uniqueId}.mp3`
+      );
       console.log("Reference received!");
 
       await delay(2000); // Adding delay to ensure file availability
