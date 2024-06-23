@@ -7,10 +7,16 @@ This is a server app using Node.
 
 1. Clone this repo
 `git clone <repo-link>`
-2. Go to root project
+
+3. Go to root project
 `cd <where you cloned this repo in the previous step>`
-3. Run it
+
+4. Initialize all the required npm packages
+`npm init`
+
+4. Run it
 `node .\file-reader-server.js`
+
 
 # How to run it remotely
 
